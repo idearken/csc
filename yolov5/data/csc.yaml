@@ -1,0 +1,11 @@
+# train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
+train: ../../csc-datasets/public_training_yolo/images/train
+val: ../../csc-datasets/public_training_yolo/images/val
+
+# number of classes
+nc: 1
+
+# class names
+names: ['sn']
+
+# python train.py --img 640 --batch 16 --epochs 100 --data csc.yaml --weights yolov5x6.pt --device 0

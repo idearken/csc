@@ -42,11 +42,11 @@ YOLO5 會將偵測到的序號圖片裁切後放在 yolov5/runs/detect/expN/crop
 
 ## 序號識別模型
 
-序號識別模型主架構分成兩部份，第一部份由 CNN 負責，主要用來截取序號圖片裡的特徵，這邊我們直接站在巨人肩膀上，使用 ImageNet 許多著名的 CNN 模型，總共使用 Inception_v3、EfficientNet-b4、VGG16、DenseNet201 四種模型。但這些模型預設輸入都是正方形大小，而序號圖片卻是比例很懸殊的長方形，若是直接將其縮放成正方形大小，準確率不高，因此我們對這四種模型做了一些小修改，使序號圖片在通過模型後，feature map 的寬度可以維持在 58 左右。再將這些 feature map 送入次級 seq2seq 模型運算。
+序號識別模型採用 Image to Sequence 的架構，分成 Encoder 及 Decoder 兩部份。Encoder 由 CNN 擔任，負責截取序號圖片裡的特徵，這邊我們直接站在巨人肩膀上，使用 ImageNet 許多著名的 CNN 模型，總共使用 Inception_v3、EfficientNet-b4、VGG16、DenseNet201 四種模型。但這些模型預設輸入都是正方形大小，而序號圖片卻是比例很懸殊的長方形，若是直接將其縮放成正方形大小，準確率不高，因此我們對這四種模型做了一些小修改，使序號圖片在通過模型後，feature map 的寬度可以維持在 58 左右。再將這些 feature map 送入次級 Decoder 模型運算。
 
 註：58 的 feature map 寬度是實驗後的較佳結果，若設定在 116 或 29，結果都沒有 58 來的好。
 
-第二部份使用 seq2seq 模型來預測序號，這裡使用 Transformer 模型來擔任這個角色，也有試過 Bi-LSTM，效果比 Transformer 差一點。
+Decoder 的部份使用 Transformer 模型來擔任這個角色，它的目的是要學習序號編碼規則的機率分佈，連同 Encoder 輸出的影像特徵，解碼成最終序號。也有試過 Bi-LSTM，效果比 Transformer 差一點。
 
 ## 預訓練模型
 

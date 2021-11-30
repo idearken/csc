@@ -34,6 +34,7 @@ class cfg(object):
     input_height = 80  # 模型接受的輸入影像高度
     input_width = 480  # 模型接受的輸入影像寬度
     d_model = 256  # Transformer 接受的 embed 大小
+    positional_encoding_len = 58  # 設定為 Transformer 輸入 (58) 與輸出 (12) 最大長度
 
     # 訓練相關參數
     train_batch_size = 64  # 訓練時批次大小
@@ -206,7 +207,7 @@ class PositionalEncoding(nn.Module):
         pos_encoding = pos_encoding.unsqueeze(0).transpose(0, 1)
         self.register_buffer("pos_encoding", pos_encoding)
 
-    def forward(self, token_embedding: torch.tensor) -> torch.tensor:
+    def forward(self, token_embedding: torch.tensor) -> torch.tensor:  # accept (sequence, batch, d_model)
         # Residual connection + pos encoding
         return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
 
@@ -220,7 +221,7 @@ class CSCIdentifier(pl.LightningModule):
 
         self.map_to_seq = torch.nn.Linear(768 * 3, cfg.d_model)
 
-        self.positional_encoder = PositionalEncoding(d_model=cfg.d_model, dropout_p=0.1, max_len=5000)  # max_len 要比 width 輸出及 num_class 都大
+        self.positional_encoder = PositionalEncoding(d_model=cfg.d_model, dropout_p=0.1, max_len=cfg.positional_encoding_len)
         self.embedding = nn.Embedding(cfg.num_class, cfg.d_model)
 
         self.transformer = nn.Transformer(
@@ -239,19 +240,16 @@ class CSCIdentifier(pl.LightningModule):
 
     def forward(self, images, targets):
         conv = self.backbone(images)  # (batch, channel=768, height=3, width=58)
-
         batch, channel, height, width = conv.size()
         conv = conv.view(batch, channel * height, width)  # (batch, feature, sequence)
+
         conv = conv.permute(2, 0, 1)  # (sequence, batch, feature)
         seq = self.map_to_seq(conv)  # (sequence, batch, d_model)
+        src = self.positional_encoder(seq * math.sqrt(cfg.d_model))  # (sequence, batch, d_model)
 
-        src = seq.permute(1, 0, 2) * math.sqrt(cfg.d_model)  # 先還原為 (batch, sequence, d_model)
-        src = self.positional_encoder(src)
-        tgt = self.embedding(targets) * math.sqrt(cfg.d_model)  # (batch, sequence, d_model)
-        tgt = self.positional_encoder(tgt)
-
-        src = src.permute(1, 0, 2)  # (sequence, batch, d_model)
+        tgt = self.embedding(targets)  # (batch, sequence, d_model)
         tgt = tgt.permute(1, 0, 2)  # (sequence, batch, d_model)
+        tgt = self.positional_encoder(tgt * math.sqrt(cfg.d_model))  # (sequence, batch, d_model)
 
         tgt_mask = self.get_tgt_mask(tgt.size(0))  # (sequence, sequence)
 
